@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trotskyist Family Tree</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { background: #111; color: #eee; font-family: sans-serif; margin: 0; }
+    svg { display: block; margin: auto; }
+    .tooltip {
+      position: absolute; background: #222; color: #fff; padding: 8px;
+      border-radius: 4px; font-size: 12px; pointer-events: none;
+    }
+    .controls {
+      position: fixed; top: 10px; left: 10px;
+      background: #222; padding: 10px; border-radius: 5px;
+      z-index: 10; color: #fff;
+    }
+    .dashboard {
+      position: fixed; top: 10px; right: 10px; width: 500px; height: 500px;
+      background: #fff; color: #000; z-index: 10; border-radius: 10px;
+      display: none;
+    }
+    .tabs { display: flex; background: #222; }
+    .tabs button {
+      flex: 1; background: #444; color: white; border: none; padding: 10px;
+      cursor: pointer;
+    }
+    .tabs button.active { background: #000; }
+    .tab-content { display: none; padding: 10px; }
+    .tab-content.active { display: block; }
+  </style>
+</head>
+<body>
+<div class="controls">
+  <label for="yearRange">Year: <span id="yearValue">1900</span></label><br>
+  <input type="range" id="yearRange" min="1900" max="2025" step="1" value="1900">
+  <br><br>
+  <button id="toggleDashboard">Toggle Dashboard</button>
+</div>
+<div class="dashboard" id="dashboard">
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="pie">Tendencies</button>
+    <button class="tab-btn" data-tab="bar">Fragmentation</button>
+    <button class="tab-btn" data-tab="hist">Longevity</button>
+  </div>
+  <div class="tab-content active" id="tab-pie"><canvas id="factionChart"></canvas></div>
+  <div class="tab-content" id="tab-bar"><canvas id="fragChart"></canvas></div>
+  <div class="tab-content" id="tab-hist"><canvas id="lifeChart"></canvas></div>
+</div>
+<svg></svg>
+<div class="tooltip" id="tooltip" style="opacity:0;"></div>
+<script>
+const nodes = [
+  {id: "Communist Party USA", group: "Stalinist", start: 1919, end: null},
+  {id: "Socialist Workers Party", group: "Orthodox Trotskyist", start: 1938, end: null},
+  {id: "Workers Party", group: "Third Camp", start: 1940, end: 1949},
+  {id: "Democratic Socialists of America", group: "Democratic Socialist", start: 1983, end: null},
+  {id: "Freedom Socialist Party", group: "Feminist Trotskyist", start: 1966, end: null},
+  {id: "International Socialist Organization", group: "Third Camp", start: 1976, end: 2019},
+  {id: "Spartacist League", group: "Orthodox Trotskyist", start: 1966, end: null},
+  {id: "Workers World Party", group: "Marcyite", start: 1958, end: null},
+  {id: "Socialist Equality Party", group: "Healyite/Northite", start: 1995, end: null},
+  {id: "Socialist Alternative", group: "CWI/Orthodox", start: 1998, end: null},
+  {id: "Industrial Workers of the World", group: "Syndicalist", start: 1905, end: null}
+];
+const links = [
+  {source: "Communist Party USA", target: "Workers World Party"},
+  {source: "Socialist Workers Party", target: "Spartacist League"},
+  {source: "Workers Party", target: "Democratic Socialists of America"},
+  {source: "Socialist Workers Party", target: "Freedom Socialist Party"},
+  {source: "Socialist Workers Party", target: "Workers Party"},
+  {source: "Spartacist League", target: "Socialist Equality Party"},
+  {source: "Workers Party", target: "International Socialist Organization"}
+];
+const svg = d3.select("svg"), width = window.innerWidth, height = 1000;
+svg.attr("width", width).attr("height", height);
+const simulation = d3.forceSimulation(nodes)
+  .force("link", d3.forceLink(links).id(d => d.id).distance(150))
+  .force("charge", d3.forceManyBody().strength(-500))
+  .force("center", d3.forceCenter(width / 2, height / 2));
+const link = svg.append("g").attr("stroke", "#aaa")
+  .selectAll("line").data(links).join("line")
+  .attr("stroke-width", 2).attr("class", "pulse-link");
+const node = svg.append("g").attr("stroke", "#fff").attr("stroke-width", 1.5)
+  .selectAll("circle").data(nodes).join("circle")
+  .attr("r", 10)
+  .attr("fill", d => d3.schemeCategory10[nodes.findIndex(n => n.id === d.id) % 10])
+  .call(d3.drag()
+    .on("start", (event, d) => { if (!event.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+    .on("drag", (event, d) => { d.fx = event.x; d.fy = event.y; })
+    .on("end", (event, d) => { if (!event.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+  );
+node.on("mouseover", (event, d) => {
+  d3.select("#tooltip").transition().duration(200).style("opacity", .9);
+  d3.select("#tooltip").html(`<strong>${d.id}</strong><br>Founded: ${d.start}<br>Tendency: ${d.group}`)
+    .style("left", `${event.pageX + 10}px`).style("top", `${event.pageY - 28}px`);
+}).on("mouseout", () => d3.select("#tooltip").transition().duration(500).style("opacity", 0));
+simulation.on("tick", () => {
+  link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+      .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+  node.attr("cx", d => d.x).attr("cy", d => d.y);
+});
+function pulseAnimation() {
+  svg.selectAll(".pulse-link")
+    .transition().duration(1000).attr("stroke", "#f00").attr("stroke-width", 4)
+    .transition().duration(1000).attr("stroke", "#aaa").attr("stroke-width", 2)
+    .on("end", pulseAnimation);
+}
+pulseAnimation();
+// Dashboard setup
+const groupCounts = {}, decadeCounts = {}, lifespanCounts = [];
+nodes.forEach(n => {
+  groupCounts[n.group] = (groupCounts[n.group] || 0) + 1;
+  const dec = Math.floor(n.start / 10) * 10;
+  decadeCounts[dec] = (decadeCounts[dec] || 0) + 1;
+  const end = n.end || new Date().getFullYear();
+  lifespanCounts.push(end - n.start);
+});
+new Chart(document.getElementById("factionChart"), {
+  type: 'pie', data: { labels: Object.keys(groupCounts), datasets: [{ data: Object.values(groupCounts), backgroundColor: d3.schemeCategory10 }] }
+});
+new Chart(document.getElementById("fragChart"), {
+  type: 'bar', data: { labels: Object.keys(decadeCounts), datasets: [{ label: 'Groups Formed', data: Object.values(decadeCounts), backgroundColor: '#4e79a7' }] }
+});
+new Chart(document.getElementById("lifeChart"), {
+  type: 'bar', data: { labels: lifespanCounts.map((_, i) => `#${i + 1}`), datasets: [{ label: 'Years Active', data: lifespanCounts, backgroundColor: '#f28e2c' }] }
+});
+document.getElementById("toggleDashboard").onclick = () => {
+  const dash = document.getElementById("dashboard");
+  dash.style.display = dash.style.display === "none" ? "block" : "none";
+};
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
